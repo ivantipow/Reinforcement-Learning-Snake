@@ -183,7 +183,7 @@
             margin-bottom: 10px;
             border-bottom: 1px solid #4a627a;
             padding-bottom: 5px;
-}
+        }
         
         .log-entry {
             font-family: monospace;
@@ -220,6 +220,24 @@
             width: 200px;
         }
         
+        .state-display {
+            font-family: monospace;
+            background-color: #2c3e50;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+        
+        .state-key {
+            color: #3498db;
+        }
+        
+        .state-value {
+            color: #f1c40f;
+        }
+        
         @media (max-width: 768px) {
             canvas {
                 width: 300px;
@@ -248,7 +266,7 @@
     <p class="subtitle">Watch as the AI learns to play Snake through Q-learning!</p>
     
     <div class="game-container">
-        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <canvas id="gameCanvas", width="400", height="400"></canvas>
     </div>
     
     <div class="controls">
@@ -302,7 +320,7 @@
         <div id="currentState">
             <div class="stats-title">Current State & Action</div>
             <div class="policy-item">
-                <div class="policy-state">State: <span id="currentStateText">Waiting to start...</span></div>
+                <div class="policy-state">State: <div id="currentStateText" class="state-display">Waiting to start...</div></div>
                 <div class="policy-action">Action: <span id="currentAction">-</span></div>
                 <div class="policy-action">Reward: <span id="currentReward">0</span></div>
             </div>
@@ -321,11 +339,11 @@
         const ACTION_SPACE = ['up', 'down', 'left', 'right'];
         
         // RL parameters
-        let LEARNING_RATE = 0.2;     // Increased learning rate for faster convergence
-        let DISCOUNT = 0.95;           // Discount factor
-        let EPISODES = 0;            // Training episodes
-        let EXPLORATION_RATE = 0.8;  // Higher initial exploration rate
-        const EXPLORATION_DECAY = 0.995; // ε decay rate
+        let LEARNING_RATE = 0.2;
+        let DISCOUNT = 0.95;
+        let EPISODES = 0;
+        let EXPLORATION_RATE = 0.8;
+        const EXPLORATION_DECAY = 0.995;
         const MIN_EXPLORATION_RATE = 0.01;
         
         // Game state
@@ -341,7 +359,6 @@
         let totalScore = 0;
         let gameOver = false;
         let speedMultiplier = 10;
-        let snakeLength = 1;
         
         // Q-learning state
         let qTable = {};
@@ -386,10 +403,7 @@
             isRunning = true;
             gameOver = false;
             
-            // Clear previous game if any
             if (gameLoop) clearInterval(gameLoop);
-            
-            // Start game loop with adjusted speed
             gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
             
             addLogEntry("info", "Training started with ε = " + EXPLORATION_RATE.toFixed(2));
@@ -407,19 +421,14 @@
         
         // Reset the game
         function resetGame() {
-            // Clear game loop
             clearInterval(gameLoop);
-            
-            // Reset game state
             snake = [{ x: 10, y: 10 }];
             food = generateFood();
             direction = 'right';
             nextDirection = 'right';
             gameOver = false;
             score = 0;
-            snakeLength = 1;
             
-            // Redraw the game
             drawGame();
             updateStats();
             
@@ -448,11 +457,10 @@
                 return;
             }
             
-            // Get action from Q-learning
             const state = getState();
             const action = chooseAction(state);
             
-            // Don't allow 180-degree turns (prevents immediate death)
+            // Don't allow 180-degree turns
             if (!((direction === 'up' && action === 'down') ||
                   (direction === 'down' && action === 'up') ||
                   (direction === 'left' && action === 'right') ||
@@ -460,8 +468,8 @@
                 nextDirection = action;
             }
             
-            // Display current state and action
-            currentStateText.textContent = JSON.stringify(getStateFeatures(state));
+            // Update state display
+            updateStateDisplay(state);
             currentAction.textContent = action;
             
             // Store for learning
@@ -490,7 +498,7 @@
                 snake.some(segment => segment.x === head.x && segment.y === head.y)
             ) {
                 gameOver = true;
-                lastReward = -10; // Negative reward for dying
+                lastReward = -10;
                 currentReward.textContent = lastReward;
                 addLogEntry("danger", "Episode " + EPISODES + ": Collision! Score: " + score);
                 return;
@@ -503,23 +511,40 @@
             if (head.x === food.x && head.y === food.y) {
                 score += 10;
                 totalScore += 10;
-                snakeLength++;
                 food = generateFood();
-                lastReward = 10; // Positive reward for eating food
+                lastReward = 10;
                 currentReward.textContent = "+" + lastReward;
                 addLogEntry("success", "Episode " + EPISODES + ": Ate food! Current score: " + score);
             } else {
-                // Remove tail only if snake hasn't grown
-                if (snake.length > snakeLength) {
-                    snake.pop();
-                }
-                lastReward = -0.1; // Small negative reward for each step to encourage efficiency
+                // Remove tail
+                snake.pop();
+                lastReward = -0.1;
                 currentReward.textContent = lastReward.toFixed(1);
             }
             
-            // Draw the game
             drawGame();
             updateStats();
+        }
+        
+        // Update the state display with formatted output
+        function updateStateDisplay(state) {
+            const stateFeatures = getStateFeatures(state);
+            
+            // Create formatted output
+            let output = '';
+            output += `<span class="state-key">Food directions:</span>\n`;
+            output += `  Left: <span class="state-value">${stateFeatures.foodLeft ? 'Yes' : 'No'}</span>\n`;
+            output += `  Right: <span class="state-value">${stateFeatures.foodRight ? 'Yes' : 'No'}</span>\n`;
+            output += `  Up: <span class="state-value">${stateFeatures.foodUp ? 'Yes' : 'No'}</span>\n`;
+            output += `  Down: <span class="state-value">${stateFeatures.foodDown ? 'Yes' : 'No'}</span>\n\n`;
+            
+            output += `<span class="state-key">Danger directions:</span>\n`;
+            output += `  Up: <span class="state-value">${stateFeatures.dangerUp ? 'Wall/Snake' : 'Safe'}</span>\n`;
+            output += `  Down: <span class="state-value">${stateFeatures.dangerDown ? 'Wall/Snake' : 'Safe'}</span>\n`;
+            output += `  Left: <span class="state-value">${stateFeatures.dangerLeft ? 'Wall/Snake' : 'Safe'}</span>\n`;
+            output += `  Right: <span class="state-value">${stateFeatures.dangerRight ? 'Wall/Snake' : 'Safe'}</span>\n`;
+            
+            currentStateText.innerHTML = output;
         }
         
         // Handle game over
@@ -527,35 +552,28 @@
             clearInterval(gameLoop);
             isRunning = false;
             
-            // Update high score
             if (score > highScore) {
                 highScore = score;
                 highScoreDisplay.textContent = highScore;
                 addLogEntry("warning", "New high score: " + highScore);
             }
             
-            // Start new episode
             EPISODES++;
             episodeCount.textContent = EPISODES;
             
-            // Decay exploration rate
             EXPLORATION_RATE = Math.max(MIN_EXPLORATION_RATE, EXPLORATION_RATE * EXPLORATION_DECAY);
             explorationRate.textContent = EXPLORATION_RATE.toFixed(2);
             
-            // Reset game state
             snake = [{ x: 10, y: 10 }];
             food = generateFood();
             direction = 'right';
             nextDirection = 'right';
             gameOver = false;
             score = 0;
-            snakeLength = 1;
             
-            // Start new episode
             gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
             isRunning = true;
             
-            // Make sure to learn from the final state
             if (lastState && lastAction !== null) {
                 learn(lastState, lastAction, null, lastReward);
             }
@@ -563,26 +581,21 @@
         
         // Draw the game
         function drawGame() {
-            // Clear canvas
             ctx.fillStyle = '#34495e';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
-            // Draw snake
             snake.forEach((segment, index) => {
                 if (index === 0) {
-                    ctx.fillStyle = '#2ecc71'; // Head color
+                    ctx.fillStyle = '#2ecc71';
                 } else {
-                    ctx.fillStyle = '#27ae60'; // Body color
+                    ctx.fillStyle = '#27ae60';
                 }
                 
                 ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
-                
-                // Add border to segments
                 ctx.strokeStyle = '#2c3e50';
                 ctx.strokeRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
             });
             
-            // Draw food
             ctx.fillStyle = '#e74c3c';
             ctx.beginPath();
             const centerX = food.x * GRID_SIZE + GRID_SIZE / 2;
@@ -590,7 +603,6 @@
             ctx.arc(centerX, centerY, GRID_SIZE / 2, 0, Math.PI * 2);
             ctx.fill();
             
-            // Draw score and episode info
             ctx.font = '20px Arial';
             ctx.fillStyle = '#ecf0f1';
             ctx.textAlign = 'left';
@@ -634,7 +646,7 @@
             trainingLog.scrollTop = trainingLog.scrollHeight;
         }
         
-        // Helper function to get state features for display
+        // Helper function to get state features
         function getStateFeatures(state) {
             return {
                 foodLeft: state[0] === '1',
@@ -644,11 +656,7 @@
                 dangerUp: state[4] === '1',
                 dangerDown: state[5] === '1',
                 dangerLeft: state[6] === '1',
-                dangerRight: state[7] === '1',
-                dirUp: state[8] === '1',
-                dirDown: state[9] === '1',
-                dirLeft: state[10] === '1',
-                dirRight: state[11] === '1'
+                dangerRight: state[7] === '1'
             };
         }
         
@@ -658,7 +666,7 @@
         function getState() {
             const head = snake[0];
             
-            // Calculate relative food positions (more precise than just left/right)
+            // Calculate relative food positions
             const foodLeft = food.x < head.x ? 1 : 0;
             const foodRight = food.x > head.x ? 1 : 0;
             const foodUp = food.y < head.y ? 1 : 0;
@@ -670,12 +678,6 @@
             const dangerLeft = head.x === 0 || snake.some(s => s.x === head.x - 1 && s.y === head.y);
             const dangerRight = head.x === TILE_COUNT - 1 || snake.some(s => s.x === head.x + 1 && s.y === head.y);
             
-            // Current direction
-            const dirUp = direction === 'up';
-            const dirDown = direction === 'down';
-            const dirLeft = direction === 'left';
-            const dirRight = direction === 'right';
-            
             // Create state key
             const stateKey = [
                 foodLeft,
@@ -686,10 +688,10 @@
                 dangerDown ? '1' : '0',
                 dangerLeft ? '1' : '0',
                 dangerRight ? '1' : '0',
-                dirUp ? '1' : '0',
-                dirDown ? '1' : '0',
-                dirLeft ? '1' : '0',
-                dirRight ? '1' : '0'
+                direction === 'up' ? '1' : '0',
+                direction === 'down' ? '1' : '0',
+                direction === 'left' ? '1' : '0',
+                direction === 'right' ? '1' : '0'
             ].join('');
             
             // Initialize Q-values if new state
@@ -760,21 +762,7 @@
             if (state[6] === '1') unsafeActions.push('left');
             if (state[7] === '1') unsafeActions.push('right');
             
-            // Also avoid going backwards (unless no other option)
-            const isGoingUp = state[8] === '1';
-            const isGoingDown = state[9] === '1';
-            const isGoingLeft = state[10] === '1';
-            const isGoingRight = state[11] === '1';
-            
-            if (isGoingUp) unsafeActions.push('down');
-            if (isGoingDown) unsafeActions.push('up');
-            if (isGoingLeft) unsafeActions.push('right');
-            if (isGoingRight) unsafeActions.push('left');
-            
-            // Filter out unsafe actions
-            const safeActions = actions.filter(a => !unsafeActions.includes(a));
-            
-            return safeActions.length > 0 ? safeActions : actions; // Return all if none are safe
+            return actions.filter(a => !unsafeActions.includes(a));
         }
         
         // Q-learning update

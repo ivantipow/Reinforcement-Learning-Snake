@@ -238,6 +238,40 @@
             color: #f1c40f;
         }
         
+        .snake-body-map {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            margin-top: 10px;
+        }
+        
+        .cell {
+            width: 14px;
+            height: 14px;
+            background-color: #34495e;
+            border: 1px solid #4a627a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 8px;
+        }
+        
+        .snake-head {
+            background-color: #2ecc71;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .snake-body {
+            background-color: #27ae60;
+            color: white;
+        }
+        
+        .food {
+            background-color: #e74c3c;
+            color: white;
+        }
+        
         @media (max-width: 768px) {
             canvas {
                 width: 300px;
@@ -295,6 +329,10 @@
             <div class="stats-value" id="avgScore">0</div>
         </div>
         <div class="stats-box">
+            <div class="stats-title">Steps to Food</div>
+            <div class="stats-value" id="stepsToFood">0</div>
+        </div>
+        <div class="stats-box">
             <div class="stats-title">Learning Rate (α)</div>
             <div class="stats-value" id="learningRate">0.1</div>
         </div>
@@ -309,9 +347,9 @@
         <div id="learningDescription">
             <p>The AI is using Q-learning, a model-free reinforcement learning algorithm. It learns by:</p>
             <ol>
-                <li>Observing the current state (snake position, food position, danger directions)</li>
-                <li>Choosing an action (up, down, left, right) based on ε-greedy policy</li>
-                <li>Receiving a reward (eating food: +10, dying: -10, else: -0.1)</li>
+                <li>Observing the current state (snake position, food position, body positions, danger directions)</li>
+                <li>Choosing an action (forward, left, right) based on ε-greedy policy</li>
+                <li>Receiving a reward (eating food faster gives higher rewards)</li>
                 <li>Updating its Q-table (state-action values)</li>
             </ol>
             <p>Watch as the Q-values update and exploration rate decreases over time!</p>
@@ -325,6 +363,9 @@
                 <div class="policy-action">Reward: <span id="currentReward">0</span></div>
             </div>
         </div>
+        
+        <div class="stats-title" style="margin-top: 20px;">Snake Body Map</div>
+        <div id="snakeBodyMap" class="snake-body-map"></div>
     </div>
     
     <div class="log-container">
@@ -336,7 +377,7 @@
         // Game constants
         const GRID_SIZE = 20;
         const TILE_COUNT = 20;
-        const ACTION_SPACE = ['up', 'down', 'left', 'right'];
+        const ACTION_SPACE = ['forward', 'left', 'right']; // Now includes 'forward' to continue current direction
         
         // RL parameters
         let LEARNING_RATE = 0.2;
@@ -359,6 +400,10 @@
         let totalScore = 0;
         let gameOver = false;
         let speedMultiplier = 10;
+        let stepsSinceLastFood = 0;
+        let stepsToFood = 0;
+        let totalStepsToFood = 0;
+        let avgStepsToFood = 0;
         
         // Q-learning state
         let qTable = {};
@@ -377,12 +422,14 @@
         const episodeCount = document.getElementById('episodeCount');
         const highScoreDisplay = document.getElementById('highScore');
         const avgScore = document.getElementById('avgScore');
+        const stepsToFoodDisplay = document.getElementById('stepsToFood');
         const learningRate = document.getElementById('learningRate');
         const explorationRate = document.getElementById('explorationRate');
         const currentStateText = document.getElementById('currentStateText');
         const currentAction = document.getElementById('currentAction');
         const currentReward = document.getElementById('currentReward');
         const trainingLog = document.getElementById('trainingLog');
+        const snakeBodyMap = document.getElementById('snakeBodyMap');
         
         // Event listeners
         startBtn.addEventListener('click', startGame);
@@ -394,6 +441,7 @@
         function init() {
             drawGame();
             updateStats();
+            updateSnakeBodyMap();
         }
         
         // Start the game
@@ -428,9 +476,12 @@
             nextDirection = 'right';
             gameOver = false;
             score = 0;
+            stepsSinceLastFood = 0;
+            stepsToFood = 0;
             
             drawGame();
             updateStats();
+            updateSnakeBodyMap();
             
             if (isRunning) {
                 gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
@@ -457,16 +508,13 @@
                 return;
             }
             
+            stepsSinceLastFood++;
+            
             const state = getState();
             const action = chooseAction(state);
             
-            // Don't allow 180-degree turns
-            if (!((direction === 'up' && action === 'down') ||
-                  (direction === 'down' && action === 'up') ||
-                  (direction === 'left' && action === 'right') ||
-                  (direction === 'right' && action === 'left'))) {
-                nextDirection = action;
-            }
+            // Apply the action (forward, left, or right)
+            applyAction(action);
             
             // Update state display
             updateStateDisplay(state);
@@ -498,9 +546,9 @@
                 snake.some(segment => segment.x === head.x && segment.y === head.y)
             ) {
                 gameOver = true;
-                lastReward = -10;
-                currentReward.textContent = lastReward;
-                addLogEntry("danger", "Episode " + EPISODES + ": Collision! Score: " + score);
+                lastReward = -10 - (stepsSinceLastFood * 0.05); // Penalize for time wasted
+                currentReward.textContent = lastReward.toFixed(1);
+                addLogEntry("danger", "Episode " + EPISODES + ": Collision! Score: " + score + " (took " + stepsSinceLastFood + " steps)");
                 return;
             }
             
@@ -509,21 +557,54 @@
             
             // Check if food is eaten
             if (head.x === food.x && head.y === food.y) {
+                const baseReward = 10;
+                // Reward more for finding food quickly, penalize for taking too long
+                const timeBonus = Math.max(0, (50 - stepsSinceLastFood) * 0.2);
+                const reward = baseReward + timeBonus;
+                
+                stepsToFood = stepsSinceLastFood;
+                avgStepsToFood = (totalStepsToFood + stepsToFood) / (EPISODES + 1);
+                totalStepsToFood += stepsToFood;
+                
                 score += 10;
                 totalScore += 10;
                 food = generateFood();
-                lastReward = 10;
-                currentReward.textContent = "+" + lastReward;
-                addLogEntry("success", "Episode " + EPISODES + ": Ate food! Current score: " + score);
+                lastReward = reward;
+                stepsSinceLastFood = 0;
+                currentReward.textContent = reward.toFixed(1);
+                addLogEntry("success", `Episode ${EPISODES}: Ate food in ${stepsToFood} steps! Reward: ${reward.toFixed(1)}`);
             } else {
                 // Remove tail
                 snake.pop();
-                lastReward = -0.1;
-                currentReward.textContent = lastReward.toFixed(1);
+                // Small negative reward for taking time
+                lastReward = -0.1 - (stepsSinceLastFood * 0.001);
+                currentReward.textContent = lastReward.toFixed(2);
             }
             
             drawGame();
             updateStats();
+            updateSnakeBodyMap();
+        }
+        
+        // Apply action to change direction
+        function applyAction(action) {
+            switch (action) {
+                case 'forward': // Continue in same direction
+                    nextDirection = direction;
+                    break;
+                case 'left': // Turn left
+                    nextDirection = 
+                        direction === 'up' ? 'left' :
+                        direction === 'left' ? 'down' :
+                        direction === 'down' ? 'right' : 'up';
+                    break;
+                case 'right': // Turn right
+                    nextDirection = 
+                        direction === 'up' ? 'right' :
+                        direction === 'right' ? 'down' :
+                        direction === 'down' ? 'left' : 'up';
+                    break;
+            }
         }
         
         // Update the state display with formatted output
@@ -542,9 +623,49 @@
             output += `  Up: <span class="state-value">${stateFeatures.dangerUp ? 'Wall/Snake' : 'Safe'}</span>\n`;
             output += `  Down: <span class="state-value">${stateFeatures.dangerDown ? 'Wall/Snake' : 'Safe'}</span>\n`;
             output += `  Left: <span class="state-value">${stateFeatures.dangerLeft ? 'Wall/Snake' : 'Safe'}</span>\n`;
-            output += `  Right: <span class="state-value">${stateFeatures.dangerRight ? 'Wall/Snake' : 'Safe'}</span>\n`;
+            output += `  Right: <span class="state-value">${stateFeatures.dangerRight ? 'Wall/Snake' : 'Safe'}</span>\n\n`;
+            
+            output += `<span class="state-key">Current direction:</span> <span class="state-value">${direction}</span>\n`;
+            output += `<span class="state-key">Steps since last food:</span> <span class="state-value">${stepsSinceLastFood}</span>`;
             
             currentStateText.innerHTML = output;
+        }
+        
+        // Update the snake body map visualization
+        function updateSnakeBodyMap() {
+            snakeBodyMap.innerHTML = '';
+            
+            // Create a grid representation
+            const grid = Array(TILE_COUNT).fill().map(() => Array(TILE_COUNT).fill(0));
+            
+            // Mark snake body
+            snake.forEach((segment, index) => {
+                grid[segment.y][segment.x] = index === 0 ? 2 : 1; // 2 = head, 1 = body
+            });
+            
+            // Mark food
+            grid[food.y][food.x] = 3;
+            
+            // Create visual representation
+            for (let y = 0; y < TILE_COUNT; y++) {
+                for (let x = 0; x < TILE_COUNT; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    
+                    if (grid[y][x] === 2) { // Snake head
+                        cell.classList.add('snake-head');
+                        cell.textContent = 'H';
+                    } else if (grid[y][x] === 1) { // Snake body
+                        cell.classList.add('snake-body');
+                        cell.textContent = 'B';
+                    } else if (grid[y][x] === 3) { // Food
+                        cell.classList.add('food');
+                        cell.textContent = 'F';
+                    }
+                    
+                    snakeBodyMap.appendChild(cell);
+                }
+            }
         }
         
         // Handle game over
@@ -555,7 +676,7 @@
             if (score > highScore) {
                 highScore = score;
                 highScoreDisplay.textContent = highScore;
-                addLogEntry("warning", "New high score: " + highScore);
+                addLogEntry("warning", "New high score: " + highScore + " (avg steps to food: " + avgStepsToFood.toFixed(1) + ")");
             }
             
             EPISODES++;
@@ -570,6 +691,7 @@
             nextDirection = 'right';
             gameOver = false;
             score = 0;
+            stepsSinceLastFood = 0;
             
             gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
             isRunning = true;
@@ -609,6 +731,7 @@
             ctx.fillText('Score: ' + score, 10, 25);
             ctx.fillText('Episode: ' + EPISODES, 10, 50);
             ctx.fillText('ε: ' + EXPLORATION_RATE.toFixed(2), 10, 75);
+            ctx.fillText('Steps: ' + stepsSinceLastFood, 10, 100);
         }
         
         // Generate food at random position
@@ -631,6 +754,10 @@
             
             if (EPISODES > 0) {
                 avgScore.textContent = (totalScore / EPISODES).toFixed(1);
+            }
+            
+            if (stepsToFood > 0) {
+                stepsToFoodDisplay.textContent = stepsToFood;
             }
             
             learningRate.textContent = LEARNING_RATE.toFixed(2);
@@ -697,17 +824,32 @@
             // Initialize Q-values if new state
             if (!qTable[stateKey]) {
                 qTable[stateKey] = { 
-                    up: 0,
-                    down: 0,
+                    forward: 0,
                     left: 0,
                     right: 0
                 };
                 
-                // Bias toward moving toward food
-                if (foodUp && !dangerUp) qTable[stateKey].up += 1;
-                if (foodDown && !dangerDown) qTable[stateKey].down += 1;
-                if (foodLeft && !dangerLeft) qTable[stateKey].left += 1;
-                if (foodRight && !dangerRight) qTable[stateKey].right += 1;
+                // Bias toward moving toward food and safe actions
+                if (foodUp && !dangerUp) {
+                    if (direction === 'up') qTable[stateKey].forward += 1;
+                    if (direction === 'right') qTable[stateKey].left += 1;
+                    if (direction === 'left') qTable[stateKey].right += 1;
+                }
+                if (foodDown && !dangerDown) {
+                    if (direction === 'down') qTable[stateKey].forward += 1;
+                    if (direction === 'left') qTable[stateKey].left += 1;
+                    if (direction === 'right') qTable[stateKey].right += 1;
+                }
+                if (foodLeft && !dangerLeft) {
+                    if (direction === 'left') qTable[stateKey].forward += 1;
+                    if (direction === 'down') qTable[stateKey].left += 1;
+                    if (direction === 'up') qTable[stateKey].right += 1;
+                }
+                if (foodRight && !dangerRight) {
+                    if (direction === 'right') qTable[stateKey].forward += 1;
+                    if (direction === 'up') qTable[stateKey].left += 1;
+                    if (direction === 'down') qTable[stateKey].right += 1;
+                }
             }
             
             return stateKey;
@@ -753,14 +895,40 @@
         
         // Get safe actions (avoid immediate death)
         function getSafeActions(state) {
-            const actions = ['up', 'down', 'left', 'right'];
+            const actions = ['forward', 'left', 'right'];
             const unsafeActions = [];
             
-            // Avoid walls and body
-            if (state[4] === '1') unsafeActions.push('up');
-            if (state[5] === '1') unsafeActions.push('down');
-            if (state[6] === '1') unsafeActions.push('left');
-            if (state[7] === '1') unsafeActions.push('right');
+            // Get the dangerous direction for each possible action
+            const directionMap = {
+                up: {
+                    forward: 4, // dangerUp
+                    left: 6,    // dangerLeft
+                    right: 7    // dangerRight
+                },
+                down: {
+                    forward: 5, // dangerDown
+                    left: 7,    // dangerRight
+                    right: 6    // dangerLeft
+                },
+                left: {
+                    forward: 6, // dangerLeft
+                    left: 5,    // dangerDown
+                    right: 4    // dangerUp
+                },
+                right: {
+                    forward: 7, // dangerRight
+                    left: 4,    // dangerUp
+                    right: 5    // dangerDown
+                }
+            };
+            
+            // Check which actions would lead to danger
+            for (const action of actions) {
+                const dangerIndex = directionMap[direction][action];
+                if (state[dangerIndex] === '1') {
+                    unsafeActions.push(action);
+                }
+            }
             
             return actions.filter(a => !unsafeActions.includes(a));
         }

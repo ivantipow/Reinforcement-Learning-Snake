@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reinforcement Learning Snake Game</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #2c3e50;
+            color: #ecf0f1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        h1 {
+            color: #f1c40f;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #bdc3c7;
+            text-align: center;
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        canvas {
+            background-color: #34495e;
+            border-radius: 8px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+            margin-bottom: 20px;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #2980b9;
+        }
+        
+        .stats-container {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        
+        .stats-box {
+            background-color: #34495e;
+            border-radius: 8px;
+            padding: 15px;
+            min-width: 200px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+        }
+        
+        .stats-title {
+            color: #f1c40f;
+            font-size: 18px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #4a627a;
+            padding-bottom: 5px;
+        }
+        
+        .stats-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2ecc71;
+        }
+        
+        .learning-visuals {
+            width: 100%;
+            max-width: 800px;
+            background-color: #34495e;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            margin-bottom: 30px;
+        }
+        
+        .q-table-container {
+            overflow-x: auto;
+            max-height: 300px;
+            margin-top: 15px;
+            border-radius: 5px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        
+        th, td {
+            padding: 5px;
+            text-align: center;
+            border: 1px solid #4a627a;
+            min-width: 60px;
+        }
+        
+        th {
+            background-color: #2c3e50;
+            color: #f1c40f;
+        }
+        
+        .state-cell {
+            background-color: #3498db20;
+            font-family: monospace;
+        }
+        
+        .policy-visual {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            margin-top: 15px;
+        }
+        
+        .policy-item {
+            background-color: #2c3e50;
+            border-radius: 5px;
+            padding: 10px;
+            text-align: center;
+            min-width: 120px;
+        }
+        
+        .policy-state {
+            font-family: monospace;
+            margin-bottom: 5px;
+        }
+        
+        .policy-action {
+            color: #2ecc71;
+            font-weight: bold;
+        }
+        
+        .action-icon {
+            font-size: 20px;
+        }
+        
+        .log-container {
+            width: 100%;
+            max-width: 800px;
+            background-color: #34495e;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.3);
+            margin-bottom: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .log-title {
+            color: #f1c40f;
+            font-size: 18px;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #4a627a;
+            padding-bottom: 5px;
+}
+        
+        .log-entry {
+            font-family: monospace;
+            margin-bottom: 5px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #4a627a30;
+            font-size: 14px;
+        }
+        
+        .success {
+            color: #2ecc71;
+        }
+        
+        .danger {
+            color: #e74c3c;
+        }
+        
+        .warning {
+            color: #f39c12;
+        }
+        
+        .info {
+            color: #3498db;
+        }
+        
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        input[type="range"] {
+            width: 200px;
+        }
+        
+        @media (max-width: 768px) {
+            canvas {
+                width: 300px;
+                height: 300px;
+            }
+            
+            .stats-container {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .stats-box {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            
+            .controls {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Reinforcement Learning Snake Game</h1>
+    <p class="subtitle">Watch as the AI learns to play Snake through Q-learning!</p>
+    
+    <div class="game-container">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+    
+    <div class="controls">
+        <button id="startBtn">Start Training</button>
+        <button id="pauseBtn">Pause</button>
+        <button id="resetBtn">Reset</button>
+    </div>
+    
+    <div class="speed-control">
+        <span>Speed:</span>
+        <input type="range" id="speedSlider", min="1", max="20", value="10">
+        <span id="speedValue">10x</span>
+    </div>
+    
+    <div class="stats-container">
+        <div class="stats-box">
+            <div class="stats-title">Current Episode</div>
+            <div class="stats-value" id="episodeCount">0</div>
+        </div>
+        <div class="stats-box">
+            <div class="stats-title">High Score</div>
+            <div class="stats-value" id="highScore">0</div>
+        </div>
+        <div class="stats-box">
+            <div class="stats-title">Average Score</div>
+            <div class="stats-value" id="avgScore">0</div>
+        </div>
+        <div class="stats-box">
+            <div class="stats-title">Learning Rate (α)</div>
+            <div class="stats-value" id="learningRate">0.1</div>
+        </div>
+        <div class="stats-box">
+            <div class="stats-title">Exploration Rate (ε)</div>
+            <div class="stats-value" id="explorationRate">0.3</div>
+        </div>
+    </div>
+    
+    <div class="learning-visuals">
+        <div class="stats-title">Learning Process</div>
+        <div id="learningDescription">
+            <p>The AI is using Q-learning, a model-free reinforcement learning algorithm. It learns by:</p>
+            <ol>
+                <li>Observing the current state (snake position, food position, danger directions)</li>
+                <li>Choosing an action (up, down, left, right) based on ε-greedy policy</li>
+                <li>Receiving a reward (eating food: +10, dying: -10, else: -0.1)</li>
+                <li>Updating its Q-table (state-action values)</li>
+            </ol>
+            <p>Watch as the Q-values update and exploration rate decreases over time!</p>
+        </div>
+        
+        <div id="currentState">
+            <div class="stats-title">Current State & Action</div>
+            <div class="policy-item">
+                <div class="policy-state">State: <span id="currentStateText">Waiting to start...</span></div>
+                <div class="policy-action">Action: <span id="currentAction">-</span></div>
+                <div class="policy-action">Reward: <span id="currentReward">0</span></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="log-container">
+        <div class="log-title">Learning Log</div>
+        <div id="trainingLog"></div>
+    </div>
+    
+    <script>
+        // Game constants
+        const GRID_SIZE = 20;
+        const TILE_COUNT = 20;
+        const ACTION_SPACE = ['up', 'down', 'left', 'right'];
+        
+        // RL parameters
+        let LEARNING_RATE = 0.2;     // Increased learning rate for faster convergence
+        let DISCOUNT = 0.95;           // Discount factor
+        let EPISODES = 0;            // Training episodes
+        let EXPLORATION_RATE = 0.8;  // Higher initial exploration rate
+        const EXPLORATION_DECAY = 0.995; // ε decay rate
+        const MIN_EXPLORATION_RATE = 0.01;
+        
+        // Game state
+        let snake = [{ x: 10, y: 10 }];
+        let food = generateFood();
+        let direction = 'right';
+        let nextDirection = 'right';
+        let gameSpeed = 100;
+        let gameLoop;
+        let isRunning = false;
+        let score = 0;
+        let highScore = 0;
+        let totalScore = 0;
+        let gameOver = false;
+        let speedMultiplier = 10;
+        let snakeLength = 1;
+        
+        // Q-learning state
+        let qTable = {};
+        let lastState = null;
+        let lastAction = null;
+        let lastReward = 0;
+        
+        // DOM elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const episodeCount = document.getElementById('episodeCount');
+        const highScoreDisplay = document.getElementById('highScore');
+        const avgScore = document.getElementById('avgScore');
+        const learningRate = document.getElementById('learningRate');
+        const explorationRate = document.getElementById('explorationRate');
+        const currentStateText = document.getElementById('currentStateText');
+        const currentAction = document.getElementById('currentAction');
+        const currentReward = document.getElementById('currentReward');
+        const trainingLog = document.getElementById('trainingLog');
+        
+        // Event listeners
+        startBtn.addEventListener('click', startGame);
+        pauseBtn.addEventListener('click', pauseGame);
+        resetBtn.addEventListener('click', resetGame);
+        speedSlider.addEventListener('input', updateSpeed);
+        
+        // Initialize the game
+        function init() {
+            drawGame();
+            updateStats();
+        }
+        
+        // Start the game
+        function startGame() {
+            if (isRunning) return;
+            
+            isRunning = true;
+            gameOver = false;
+            
+            // Clear previous game if any
+            if (gameLoop) clearInterval(gameLoop);
+            
+            // Start game loop with adjusted speed
+            gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
+            
+            addLogEntry("info", "Training started with ε = " + EXPLORATION_RATE.toFixed(2));
+        }
+        
+        // Pause the game
+        function pauseGame() {
+            if (!isRunning) return;
+            
+            clearInterval(gameLoop);
+            isRunning = false;
+            
+            addLogEntry("info", "Training paused");
+        }
+        
+        // Reset the game
+        function resetGame() {
+            // Clear game loop
+            clearInterval(gameLoop);
+            
+            // Reset game state
+            snake = [{ x: 10, y: 10 }];
+            food = generateFood();
+            direction = 'right';
+            nextDirection = 'right';
+            gameOver = false;
+            score = 0;
+            snakeLength = 1;
+            
+            // Redraw the game
+            drawGame();
+            updateStats();
+            
+            if (isRunning) {
+                gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
+            }
+            
+            addLogEntry("info", "Game reset");
+        }
+        
+        // Update game speed
+        function updateSpeed() {
+            speedMultiplier = parseInt(speedSlider.value);
+            speedValue.textContent = speedMultiplier + "x";
+            
+            if (isRunning) {
+                clearInterval(gameLoop);
+                gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
+            }
+        }
+        
+        // Main game loop
+        function frame() {
+            if (gameOver) {
+                handleGameOver();
+                return;
+            }
+            
+            // Get action from Q-learning
+            const state = getState();
+            const action = chooseAction(state);
+            
+            // Don't allow 180-degree turns (prevents immediate death)
+            if (!((direction === 'up' && action === 'down') ||
+                  (direction === 'down' && action === 'up') ||
+                  (direction === 'left' && action === 'right') ||
+                  (direction === 'right' && action === 'left'))) {
+                nextDirection = action;
+            }
+            
+            // Display current state and action
+            currentStateText.textContent = JSON.stringify(getStateFeatures(state));
+            currentAction.textContent = action;
+            
+            // Store for learning
+            if (lastState && lastAction !== null) {
+                learn(lastState, lastAction, state, lastReward);
+            }
+            
+            lastState = state;
+            lastAction = action;
+            
+            // Move the snake
+            direction = nextDirection;
+            const head = { ...snake[0] };
+            
+            switch (direction) {
+                case 'up': head.y--; break;
+                case 'down': head.y++; break;
+                case 'left': head.x--; break;
+                case 'right': head.x++; break;
+            }
+            
+            // Check for collisions
+            if (
+                head.x < 0 || head.x >= TILE_COUNT ||
+                head.y < 0 || head.y >= TILE_COUNT ||
+                snake.some(segment => segment.x === head.x && segment.y === head.y)
+            ) {
+                gameOver = true;
+                lastReward = -10; // Negative reward for dying
+                currentReward.textContent = lastReward;
+                addLogEntry("danger", "Episode " + EPISODES + ": Collision! Score: " + score);
+                return;
+            }
+            
+            // Add new head
+            snake.unshift(head);
+            
+            // Check if food is eaten
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                totalScore += 10;
+                snakeLength++;
+                food = generateFood();
+                lastReward = 10; // Positive reward for eating food
+                currentReward.textContent = "+" + lastReward;
+                addLogEntry("success", "Episode " + EPISODES + ": Ate food! Current score: " + score);
+            } else {
+                // Remove tail only if snake hasn't grown
+                if (snake.length > snakeLength) {
+                    snake.pop();
+                }
+                lastReward = -0.1; // Small negative reward for each step to encourage efficiency
+                currentReward.textContent = lastReward.toFixed(1);
+            }
+            
+            // Draw the game
+            drawGame();
+            updateStats();
+        }
+        
+        // Handle game over
+        function handleGameOver() {
+            clearInterval(gameLoop);
+            isRunning = false;
+            
+            // Update high score
+            if (score > highScore) {
+                highScore = score;
+                highScoreDisplay.textContent = highScore;
+                addLogEntry("warning", "New high score: " + highScore);
+            }
+            
+            // Start new episode
+            EPISODES++;
+            episodeCount.textContent = EPISODES;
+            
+            // Decay exploration rate
+            EXPLORATION_RATE = Math.max(MIN_EXPLORATION_RATE, EXPLORATION_RATE * EXPLORATION_DECAY);
+            explorationRate.textContent = EXPLORATION_RATE.toFixed(2);
+            
+            // Reset game state
+            snake = [{ x: 10, y: 10 }];
+            food = generateFood();
+            direction = 'right';
+            nextDirection = 'right';
+            gameOver = false;
+            score = 0;
+            snakeLength = 1;
+            
+            // Start new episode
+            gameLoop = setInterval(frame, gameSpeed / speedMultiplier);
+            isRunning = true;
+            
+            // Make sure to learn from the final state
+            if (lastState && lastAction !== null) {
+                learn(lastState, lastAction, null, lastReward);
+            }
+        }
+        
+        // Draw the game
+        function drawGame() {
+            // Clear canvas
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw snake
+            snake.forEach((segment, index) => {
+                if (index === 0) {
+                    ctx.fillStyle = '#2ecc71'; // Head color
+                } else {
+                    ctx.fillStyle = '#27ae60'; // Body color
+                }
+                
+                ctx.fillRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+                
+                // Add border to segments
+                ctx.strokeStyle = '#2c3e50';
+                ctx.strokeRect(segment.x * GRID_SIZE, segment.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+            });
+            
+            // Draw food
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath();
+            const centerX = food.x * GRID_SIZE + GRID_SIZE / 2;
+            const centerY = food.y * GRID_SIZE + GRID_SIZE / 2;
+            ctx.arc(centerX, centerY, GRID_SIZE / 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // Draw score and episode info
+            ctx.font = '20px Arial';
+            ctx.fillStyle = '#ecf0f1';
+            ctx.textAlign = 'left';
+            ctx.fillText('Score: ' + score, 10, 25);
+            ctx.fillText('Episode: ' + EPISODES, 10, 50);
+            ctx.fillText('ε: ' + EXPLORATION_RATE.toFixed(2), 10, 75);
+        }
+        
+        // Generate food at random position
+        function generateFood() {
+            let newFood;
+            
+            do {
+                newFood = {
+                    x: Math.floor(Math.random() * TILE_COUNT),
+                    y: Math.floor(Math.random() * TILE_COUNT)
+                };
+            } while (snake.some(segment => segment.x === newFood.x && segment.y === newFood.y));
+            
+            return newFood;
+        }
+        
+        // Update stats display
+        function updateStats() {
+            highScoreDisplay.textContent = Math.max(score, highScore);
+            
+            if (EPISODES > 0) {
+                avgScore.textContent = (totalScore / EPISODES).toFixed(1);
+            }
+            
+            learningRate.textContent = LEARNING_RATE.toFixed(2);
+            explorationRate.textContent = EXPLORATION_RATE.toFixed(2);
+        }
+        
+        // Add log entry
+        function addLogEntry(type, message) {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.textContent = `[Episode ${EPISODES}] ${message}`;
+            trainingLog.appendChild(logEntry);
+            trainingLog.scrollTop = trainingLog.scrollHeight;
+        }
+        
+        // Helper function to get state features for display
+        function getStateFeatures(state) {
+            return {
+                foodLeft: state[0] === '1',
+                foodRight: state[1] === '1',
+                foodUp: state[2] === '1',
+                foodDown: state[3] === '1',
+                dangerUp: state[4] === '1',
+                dangerDown: state[5] === '1',
+                dangerLeft: state[6] === '1',
+                dangerRight: state[7] === '1',
+                dirUp: state[8] === '1',
+                dirDown: state[9] === '1',
+                dirLeft: state[10] === '1',
+                dirRight: state[11] === '1'
+            };
+        }
+        
+        // RL functions
+        
+        // Get current state representation
+        function getState() {
+            const head = snake[0];
+            
+            // Calculate relative food positions (more precise than just left/right)
+            const foodLeft = food.x < head.x ? 1 : 0;
+            const foodRight = food.x > head.x ? 1 : 0;
+            const foodUp = food.y < head.y ? 1 : 0;
+            const foodDown = food.y > head.y ? 1 : 0;
+            
+            // Calculate danger directions (walls or self)
+            const dangerUp = head.y === 0 || snake.some(s => s.x === head.x && s.y === head.y - 1);
+            const dangerDown = head.y === TILE_COUNT - 1 || snake.some(s => s.x === head.x && s.y === head.y + 1);
+            const dangerLeft = head.x === 0 || snake.some(s => s.x === head.x - 1 && s.y === head.y);
+            const dangerRight = head.x === TILE_COUNT - 1 || snake.some(s => s.x === head.x + 1 && s.y === head.y);
+            
+            // Current direction
+            const dirUp = direction === 'up';
+            const dirDown = direction === 'down';
+            const dirLeft = direction === 'left';
+            const dirRight = direction === 'right';
+            
+            // Create state key
+            const stateKey = [
+                foodLeft,
+                foodRight,
+                foodUp,
+                foodDown,
+                dangerUp ? '1' : '0',
+                dangerDown ? '1' : '0',
+                dangerLeft ? '1' : '0',
+                dangerRight ? '1' : '0',
+                dirUp ? '1' : '0',
+                dirDown ? '1' : '0',
+                dirLeft ? '1' : '0',
+                dirRight ? '1' : '0'
+            ].join('');
+            
+            // Initialize Q-values if new state
+            if (!qTable[stateKey]) {
+                qTable[stateKey] = { 
+                    up: 0,
+                    down: 0,
+                    left: 0,
+                    right: 0
+                };
+                
+                // Bias toward moving toward food
+                if (foodUp && !dangerUp) qTable[stateKey].up += 1;
+                if (foodDown && !dangerDown) qTable[stateKey].down += 1;
+                if (foodLeft && !dangerLeft) qTable[stateKey].left += 1;
+                if (foodRight && !dangerRight) qTable[stateKey].right += 1;
+            }
+            
+            return stateKey;
+        }
+        
+        // Choose action using ε-greedy policy
+        function chooseAction(state) {
+            // Explore (random action from safe actions)
+            if (Math.random() < EXPLORATION_RATE) {
+                const safeActions = getSafeActions(state);
+                const randomIndex = Math.floor(Math.random() * safeActions.length);
+                const randomAction = safeActions[randomIndex];
+                
+                addLogEntry("warning", "Exploring! Random safe action: " + randomAction);
+                return randomAction;
+            }
+            
+            // Exploit (best known action)
+            const stateActions = qTable[state];
+            let bestAction = null;
+            let maxValue = -Infinity;
+            
+            // Consider only safe actions
+            const safeActions = getSafeActions(state);
+            
+            // If no safe actions (shouldn't happen with our state representation), return random
+            if (safeActions.length === 0) {
+                const randomIndex = Math.floor(Math.random() * ACTION_SPACE.length);
+                return ACTION_SPACE[randomIndex];
+            }
+            
+            // Find best safe action
+            for (const action of safeActions) {
+                if (stateActions[action] > maxValue) {
+                    maxValue = stateActions[action];
+                    bestAction = action;
+                }
+            }
+            
+            addLogEntry("info", "Exploiting! Best action: " + bestAction);
+            return bestAction;
+        }
+        
+        // Get safe actions (avoid immediate death)
+        function getSafeActions(state) {
+            const actions = ['up', 'down', 'left', 'right'];
+            const unsafeActions = [];
+            
+            // Avoid walls and body
+            if (state[4] === '1') unsafeActions.push('up');
+            if (state[5] === '1') unsafeActions.push('down');
+            if (state[6] === '1') unsafeActions.push('left');
+            if (state[7] === '1') unsafeActions.push('right');
+            
+            // Also avoid going backwards (unless no other option)
+            const isGoingUp = state[8] === '1';
+            const isGoingDown = state[9] === '1';
+            const isGoingLeft = state[10] === '1';
+            const isGoingRight = state[11] === '1';
+            
+            if (isGoingUp) unsafeActions.push('down');
+            if (isGoingDown) unsafeActions.push('up');
+            if (isGoingLeft) unsafeActions.push('right');
+            if (isGoingRight) unsafeActions.push('left');
+            
+            // Filter out unsafe actions
+            const safeActions = actions.filter(a => !unsafeActions.includes(a));
+            
+            return safeActions.length > 0 ? safeActions : actions; // Return all if none are safe
+        }
+        
+        // Q-learning update
+        function learn(state, action, nextState, reward) {
+            // Current Q-value
+            const currentQ = qTable[state][action];
+            
+            // Calculate target Q-value
+            let targetQ;
+            if (nextState === null) {
+                // Terminal state (game over)
+                targetQ = reward;
+            } else {
+                // Maximum Q-value for next state
+                const nextStateQValues = qTable[nextState];
+                const maxNextQ = Math.max(...Object.values(nextStateQValues));
+                targetQ = reward + DISCOUNT * maxNextQ;
+            }
+            
+            // Q-learning update
+            const newQ = currentQ + LEARNING_RATE * (targetQ - currentQ);
+            qTable[state][action] = newQ;
+        }
+        
+        // Initialize the game
+        init();
+    </script>
+</body>
+</html>
